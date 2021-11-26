@@ -1,0 +1,82 @@
+version: '3.4'
+
+services:
+  db:
+    container_name: postgres_matrix_photos
+    image: postgres
+    ports:
+      - "5500:5432"
+    volumes:
+      - matrix-photos-data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - PGUSER=postgres
+      - PGPASSWORD=postgres
+    restart: always
+
+  pgadmin:
+    container_name: pgadmin4_container
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+
+  synapse:
+    container_name: matrix_synapse
+    build:
+        context: ../..
+        dockerfile: docker/Dockerfile
+    image: docker.io/matrixdotorg/synapse:latest
+    # Since synapse does not retry to connect to the database, restart upon
+    # failure
+    restart: unless-stopped
+    # See the readme for a full documentation of the environment settings
+    environment:
+      - SYNAPSE_CONFIG_PATH=/data/homeserver.yaml
+    volumes:
+      # You may either store all the files in a local folder
+      - ./files:/data
+      - ./logs:/logs
+      # .. or you may split this between different storage points
+      # - ./files:/data
+      # - /path/to/ssd:/data/uploads
+      # - /path/to/large_hdd:/data/media
+    depends_on:
+      - db
+    # In order to expose Synapse, remove one of the following, you might for
+    # instance expose the TLS port directly:
+    ports:
+      - 8448:8448/tcp
+      - 8008:8008
+    # ... or use a reverse proxy, here is an example for traefik:
+    labels:
+      # The following lines are valid for Traefik version 1.x:
+      #- traefik.enable=true
+      #- traefik.frontend.rule=Host:my.matrix.Host
+      #- traefik.port=8008
+      # Alternatively, for Traefik version 2.0:
+      - traefik.enable=false
+      - traefik.http.routers.http-synapse.entryPoints=http
+      - traefik.http.routers.http-synapse.rule=Host(`my.matrix.host`)
+      - traefik.http.middlewares.https_redirect.redirectscheme.scheme=https
+      - traefik.http.middlewares.https_redirect.redirectscheme.permanent=true
+      - traefik.http.routers.http-synapse.middlewares=https_redirect
+      - traefik.http.routers.https-synapse.entryPoints=https
+      - traefik.http.routers.https-synapse.rule=Host(`my.matrix.host`)
+      - traefik.http.routers.https-synapse.service=synapse
+      - traefik.http.routers.https-synapse.tls=true
+      - traefik.http.services.synapse.loadbalancer.server.port=8008
+      - traefik.http.routers.https-synapse.tls.certResolver=le-ssl
+  
+  element:
+    container_name: matrix_element_web
+    image: vectorim/element-web
+    ports:
+      - 8449:80
+
+volumes:
+  matrix-photos-data:
