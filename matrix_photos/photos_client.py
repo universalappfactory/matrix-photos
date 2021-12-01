@@ -59,6 +59,7 @@ class PhotOsClient():
         self.user_password = PhotOsClient.get_config_value(config, "user_password")
         self.media_path = PhotOsClient.get_config_value(config, "media_path")
         self.trusted_users = PhotOsClient.get_config_value(config, "trusted_users")
+        self.media_file = PhotOsClient.get_config_value(config, "media_file")
 
         self.client_session = client_session
         self.log = logger
@@ -137,11 +138,40 @@ class PhotOsClient():
             self.log.debug('join room!')
             await self.client.join_room(evt.room_id)
 
+        if evt.state_key == self.user_id and not self.is_trusted_user(evt.sender) and evt.content.membership == Membership.INVITE:
+            self.log.trace(f'untrusted user {evt.sender}')
+
     def is_trusted_user(self, user_id: UserID) -> bool:
         if not user_id:
             return False
 
         return user_id in self.trusted_users
+
+    def _get_next_filename(self, prefered_filename: str, index: int=0) -> str:
+        suffix = f" #{index}" if index > 0 else ''
+        new_filename = f'{prefered_filename}{suffix}'
+        if os.path.exists(new_filename):
+            return self._get_next_filename(prefered_filename, index+1)
+        return new_filename
+
+    async def _store_data(self, media_content: MediaMessageEventContent) -> None:
+        target = self._get_next_filename(os.path.join(self.media_path, str(media_content.body)))
+        encrypted_data = await self.client.download_media(media_content.file.url)
+
+        file_hash = media_content.file.hashes['sha256']
+        vector = media_content.file.iv
+        decrypted_data = decrypt_attachment(encrypted_data, media_content.file.key.key, file_hash, vector)
+
+        #TODO maybe store the hash somewhere and only store the file if we dont have a file with the same hash
+
+        self.log.trace(f'save file as {target}')
+        with open(target, "wb") as binary_file:
+            binary_file.write(decrypted_data)
+            self._add_to_media_file(target)
+
+    def _add_to_media_file(self, filename) -> None:
+        with open(self.media_file, 'a', encoding='utf-8') as binary_file:
+            binary_file.writelines([filename])
 
     async def _handle_message(self, evt: StrippedStateEvent) -> None:
         self.log.trace('_handle_message')
@@ -153,16 +183,8 @@ class PhotOsClient():
 
             if isinstance(evt.content, MediaMessageEventContent):
                 self.log.trace('MediaMessageEventContent')
-                media_content = typing.cast(MediaMessageEventContent, evt.content)
-                target = os.path.join(self.media_path, str(media_content.body))
-                encrypted_data = await self.client.download_media(media_content.file.url)
+                await self._store_data(evt.content)
 
-                file_hash = media_content.file.hashes['sha256']
-                vector = media_content.file.iv
-                decrypted_data = decrypt_attachment(encrypted_data, media_content.file.key.key, file_hash, vector)
-
-                with open(target, "wb") as binary_file:
-                    binary_file.write(decrypted_data)
         #pylint: disable=broad-except
         except Exception as error:
             self.log.error(error)
