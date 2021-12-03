@@ -9,7 +9,6 @@
     https://github.com/maubot/maubot
 """
 import sys
-import os
 import asyncio
 import traceback
 from typing import Dict, Union
@@ -17,22 +16,19 @@ from mautrix.client import client as mau
 from mautrix.crypto import PgCryptoStateStore, OlmMachine, StateStore as CryptoStateStore, PgCryptoStore
 from mautrix.crypto.attachments.attachments import decrypt_attachment
 from mautrix.client.state_store.sqlalchemy import SQLStateStore as BaseSQLStateStore
-from mautrix.types.event.message import MediaMessageEventContent, TextMessageEventContent
+from mautrix.types.event.message import MediaMessageEventContent, MessageType, TextMessageEventContent
 from mautrix.types.primitive import UserID
 from mautrix.util.async_db import Database as AsyncDatabase
 
 from mautrix.types import (StrippedStateEvent, Membership,
                            EventType)
 
+from .storage_strategy import DefaultStorageStrategy
+from .utils import get_config_value
+from .admin_command_handler import AdminCommandHandler
+
 class SQLStateStore(BaseSQLStateStore, CryptoStateStore):
     pass
-
-class MissingConfigEntryException(Exception):
-
-    def __init__(self, config_key, message="Missing config entry"):
-        self.config_key = config_key
-        self.message = f'{message}: {config_key}'
-        super().__init__(self.message)
 
 class PhotOsClient():
     '''
@@ -42,26 +38,23 @@ class PhotOsClient():
 
     global_state_store: Union['BaseSQLStateStore', 'CryptoStateStore'] = SQLStateStore()
 
-    @staticmethod
-    def get_config_value(config: Dict, key:str):
-        if not key in config:
-            raise MissingConfigEntryException(key)
-        return config[key]
-
-
     def __init__(self, config: Dict, client_session, logger) -> None:
 
-        self.user_id = PhotOsClient.get_config_value(config, "user_id")
-        self.device_id = PhotOsClient.get_config_value(config, "device_id")
-        self.base_url = PhotOsClient.get_config_value(config, "base_url")
-        self.database_url = PhotOsClient.get_config_value(config, "database_url")
-        self.user_password = PhotOsClient.get_config_value(config, "user_password")
-        self.media_path = PhotOsClient.get_config_value(config, "media_path")
-        self.trusted_users = PhotOsClient.get_config_value(config, "trusted_users")
-        self.media_file = PhotOsClient.get_config_value(config, "media_file")
-
+        self.user_id = get_config_value(config, "user_id")
+        self.device_id = get_config_value(config, "device_id")
+        self.base_url = get_config_value(config, "base_url")
+        self.database_url = get_config_value(config, "database_url")
+        self.user_password = get_config_value(config, "user_password")
+        self.media_path = get_config_value(config, "media_path")
+        self.trusted_users = get_config_value(config, "trusted_users")
+        self.media_file = get_config_value(config, "media_file")
         self.client_session = client_session
         self.log = logger
+        self.storage_strategy = DefaultStorageStrategy(config, logger)
+        self.admin_user = get_config_value(config, "admin_user", False)
+        if self.admin_user:
+            self.admin_command_handler = AdminCommandHandler(self.admin_user, config, logger)
+
         self.crypto_db = None
         self.client = None
 
@@ -89,7 +82,7 @@ class PhotOsClient():
         self.client.crypto_log = self.log
 
         self.client.ignore_first_sync = False
-        self.client.ignore_initial_sync = True
+        self.client.ignore_initial_sync = False
 
         crypto_device_id = await crypto_store.get_device_id()
         if crypto_device_id and crypto_device_id != self.device_id:
@@ -146,15 +139,10 @@ class PhotOsClient():
 
         return user_id in self.trusted_users
 
-    def _get_next_filename(self, prefered_filename: str, index: int=0) -> str:
-        suffix = f" #{index}" if index > 0 else ''
-        new_filename = f'{prefered_filename}{suffix}'
-        if os.path.exists(new_filename):
-            return self._get_next_filename(prefered_filename, index+1)
-        return new_filename
+    def is_admin_user(self, user_id: UserID) -> bool:
+        return user_id == self.admin_user
 
     async def _store_data(self, media_content: MediaMessageEventContent) -> None:
-        target = self._get_next_filename(os.path.join(self.media_path, str(media_content.body)))
         encrypted_data = await self.client.download_media(media_content.file.url)
 
         file_hash = media_content.file.hashes['sha256']
@@ -162,15 +150,22 @@ class PhotOsClient():
         decrypted_data = decrypt_attachment(encrypted_data, media_content.file.key.key, file_hash, vector)
 
         #TODO maybe store the hash somewhere and only store the file if we dont have a file with the same hash
+        self.storage_strategy.store(decrypted_data, str(media_content.body))
 
-        self.log.trace(f'save file as {target}')
-        with open(target, "wb") as binary_file:
-            binary_file.write(decrypted_data)
-            self._add_to_media_file(target)
+    #TODO perhaps to general -> maybe add allowed mimetypes to config file
+    def _is_allowed_content(self, content: MediaMessageEventContent):
+        result = content.info.mimetype.startswith('image')
+        if not result:
+            self.log.warn(f'mimetype not allowed: {content.info.mimetype}')
+        return result
 
-    def _add_to_media_file(self, filename) -> None:
-        with open(self.media_file, 'a', encoding='utf-8') as binary_file:
-            binary_file.writelines([filename])
+    async def _handle_admin_command(self, evt: StrippedStateEvent):
+        if self.admin_command_handler:
+            response = self.admin_command_handler.handle(evt.content)
+            if response:
+                content = TextMessageEventContent(MessageType.TEXT, response)
+                content.set_reply(evt)
+                await self.client.send_message_event(evt.room_id, EventType.ROOM_MESSAGE, content)
 
     async def _handle_message(self, evt: StrippedStateEvent) -> None:
         self.log.trace('_handle_message')
@@ -178,9 +173,11 @@ class PhotOsClient():
         try:
             if isinstance(evt.content, TextMessageEventContent):
                 self.log.trace('TextMessageEventContent')
-                print(evt.content.body)
+                self.log.trace(evt.content.body)
+                if self.is_admin_user(evt.sender):
+                    await self._handle_admin_command(evt)
 
-            if isinstance(evt.content, MediaMessageEventContent):
+            if isinstance(evt.content, MediaMessageEventContent) and self._is_allowed_content(evt.content):
                 self.log.trace('MediaMessageEventContent')
                 await self._store_data(evt.content)
 
@@ -193,7 +190,6 @@ class PhotOsClient():
     async def stop(self):
         self.client.stop()
         await self.crypto_db.stop()
-        await self.client.logout()
         self.log.info('client stopped!')
 
     async def start(self):

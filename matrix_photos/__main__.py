@@ -6,7 +6,6 @@ import logging.config
 import asyncio
 import signal
 import sys
-import traceback
 import argparse
 import yaml
 from aiohttp import ClientSession
@@ -38,18 +37,25 @@ TRACE_LOGGER = cast(TraceLogger, logger)
 async def main():
     global HTTP_CLIENT
     HTTP_CLIENT = ClientSession(loop=loop)
+    global PHOTOS_CLIENT
 
-    try:
-        global PHOTOS_CLIENT
-        global TRACE_LOGGER
-        global CONFIG
-        PHOTOS_CLIENT = PhotOsClient(CONFIG["matrix"], HTTP_CLIENT, TRACE_LOGGER)
-        await PHOTOS_CLIENT.initialize()
-        await PHOTOS_CLIENT.start()
-    except Exception as exception:
-        # TODO terminate program?
-        TRACE_LOGGER.fatal(exception)
-        traceback.print_exc()
+    async def try_connect() -> bool:
+        try:
+            global PHOTOS_CLIENT
+            global TRACE_LOGGER
+            global CONFIG
+            await PHOTOS_CLIENT.initialize()
+            await PHOTOS_CLIENT.start()
+            return True
+        except Exception as exception:
+            TRACE_LOGGER.exception(exception)
+            return False
+
+    PHOTOS_CLIENT = PhotOsClient(CONFIG["matrix"], HTTP_CLIENT, TRACE_LOGGER)
+
+    while not await try_connect():
+        print('failure')
+        await asyncio.sleep(5)
 
 async def stop() -> None:
     logger.info('terminate client')

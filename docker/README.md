@@ -24,7 +24,7 @@ docker run -it --rm \
 ````
 mkdir files
 mkdir logs
-mkdir files/media_stor
+mkdir files/media_store
 ````
 and set proper access rights
 
