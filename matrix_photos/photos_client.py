@@ -10,7 +10,6 @@
 """
 import sys
 import os
-import typing
 import asyncio
 import traceback
 from typing import Dict, Union
@@ -132,7 +131,7 @@ class PhotOsClient():
 
     async def _handle_invite(self, evt: StrippedStateEvent) -> None:
         self.log.trace('_handle_invite')
-        self.log.debug(evt.state_key)
+        self.log.trace(evt.state_key)
 
         if evt.state_key == self.user_id and self.is_trusted_user(evt.sender) and evt.content.membership == Membership.INVITE:
             self.log.debug('join room!')
@@ -194,12 +193,10 @@ class PhotOsClient():
     async def stop(self):
         self.client.stop()
         await self.crypto_db.stop()
-        # TODO call logout if possible
-        # await self.client.logout()
+        await self.client.logout()
         self.log.info('client stopped!')
 
     async def start(self):
         self.log.info('starting client')
-        # filter_id = await self.create_filter()
         self.client.start(None)
 #pylint: enable=missing-module-docstring, missing-function-docstring, line-too-long, missing-class-docstring
