@@ -16,16 +16,21 @@ from mautrix.client import client as mau
 from mautrix.crypto import PgCryptoStateStore, OlmMachine, StateStore as CryptoStateStore, PgCryptoStore
 from mautrix.crypto.attachments.attachments import decrypt_attachment
 from mautrix.client.state_store.sqlalchemy import SQLStateStore as BaseSQLStateStore
+from mautrix.types.event.encrypted import EncryptedEvent
 from mautrix.types.event.message import MediaMessageEventContent, MessageType, TextMessageEventContent
-from mautrix.types.primitive import UserID
+from mautrix.types.misc import PaginationDirection
+from mautrix.types.primitive import RoomID, UserID
 from mautrix.util.async_db import Database as AsyncDatabase
 
 from mautrix.types import (StrippedStateEvent, Membership,
                            EventType)
 
+from matrix_photos.text_message_command_handler import TextmessageCommandHandler
+
 from .storage_strategy import DefaultStorageStrategy
 from .utils import get_config_value
 from .admin_command_handler import AdminCommandHandler
+from .text_message_command_handler import TextmessageCommandHandler
 
 class SQLStateStore(BaseSQLStateStore, CryptoStateStore):
     pass
@@ -52,9 +57,11 @@ class PhotOsClient():
         self.log = logger
         self.storage_strategy = DefaultStorageStrategy(config, logger)
         self.admin_user = get_config_value(config, "admin_user", False)
+        self.allowed_mimetypes = get_config_value(config, "allowed_mimetypes", False)
         if self.admin_user:
             self.admin_command_handler = AdminCommandHandler(self.admin_user, config, logger)
 
+        self.text_message_command_handler = TextmessageCommandHandler(config, logger)
         self.crypto_db = None
         self.client = None
 
@@ -152,9 +159,9 @@ class PhotOsClient():
         #TODO maybe store the hash somewhere and only store the file if we dont have a file with the same hash
         self.storage_strategy.store(decrypted_data, str(media_content.body))
 
-    #TODO perhaps to general -> maybe add allowed mimetypes to config file
+
     def _is_allowed_content(self, content: MediaMessageEventContent):
-        result = content.info.mimetype.startswith('image')
+        result = content.info.mimetype in self.allowed_mimetypes
         if not result:
             self.log.warn(f'mimetype not allowed: {content.info.mimetype}')
         return result
@@ -167,15 +174,40 @@ class PhotOsClient():
                 content.set_reply(evt)
                 await self.client.send_message_event(evt.room_id, EventType.ROOM_MESSAGE, content)
 
+    def _is_admin_command(self, evt: StrippedStateEvent) -> bool:
+        if self.is_admin_user(evt.sender) and self.admin_command_handler:
+            return self.admin_command_handler.is_admin_command(evt.content)
+
+        return False
+
+    async def _handle_message_event(self, evt: StrippedStateEvent) -> None:
+        if self._is_admin_command(evt):
+            await self._handle_admin_command(evt)
+        else:
+            if await self.message_before_was_media_message(evt.room_id):
+                self.text_message_command_handler.handle(evt.content)
+
+
+    async def message_before_was_media_message(self, room_id: RoomID) -> bool:
+        token = await self.client.sync_store.get_next_batch()
+        if token:
+            messages = await self.client.get_messages(room_id, direction=PaginationDirection.BACKWARD, from_token=token, limit=2)
+            if len(messages.events) == 2:
+                event = messages.events[1]
+                if isinstance(event, EncryptedEvent):
+                    decrypted = await self.client.crypto.decrypt_megolm_event(event)
+                    if decrypted and isinstance(decrypted.content, MediaMessageEventContent):
+                        return True
+        return False
+
+
     async def _handle_message(self, evt: StrippedStateEvent) -> None:
         self.log.trace('_handle_message')
 
         try:
             if isinstance(evt.content, TextMessageEventContent):
                 self.log.trace('TextMessageEventContent')
-                self.log.trace(evt.content.body)
-                if self.is_admin_user(evt.sender):
-                    await self._handle_admin_command(evt)
+                await self._handle_message_event(evt)
 
             if isinstance(evt.content, MediaMessageEventContent) and self._is_allowed_content(evt.content):
                 self.log.trace('MediaMessageEventContent')

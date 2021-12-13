@@ -1,6 +1,6 @@
 #pylint: disable=missing-module-docstring, missing-function-docstring, line-too-long, missing-class-docstring
 import os
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from mautrix.types.event.message import MessageType, TextMessageEventContent
 from .utils import get_config_value
 
@@ -48,23 +48,27 @@ class AdminCommandHandler:
 
         return None
 
-    def _handle_text_message(self, content: TextMessageEventContent):
+    def _get_command_with_parameters(self, content: TextMessageEventContent) -> Tuple[str, List[str]]:
         commands = content.body.split(' ')
         if len(commands) <= 0:
             self.log.trace("no commands given")
+            return None
 
-        command = commands[0]
-        if command[0] != '!':
-            return self._create_help_message()
+        return (commands[0], commands[1:] if len(commands) > 1 else [])
 
-        return self._handle_command(command, commands[1:])
+    def is_admin_command(self, content: TextMessageEventContent):
+        if content.msgtype == MessageType.TEXT:
+            commands = self._get_command_with_parameters(content)
+            if commands:
+                return commands[0].startswith("!")
+
+        return False
 
     def handle(self, content: TextMessageEventContent):
         self.log.trace('handle admincommand')
-        self.log.trace(content)
-
-        if content.msgtype == MessageType.TEXT:
-            return self._handle_text_message(content)
+        if self.is_admin_command(content):
+            commands = self._get_command_with_parameters(content)
+            return self._handle_command(commands[0], commands[1])
 
         return None
 #pylint: enable=missing-module-docstring, missing-function-docstring, line-too-long, missing-class-docstring
