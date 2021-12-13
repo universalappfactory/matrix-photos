@@ -1,8 +1,28 @@
 #pylint: disable=missing-module-docstring, missing-function-docstring, line-too-long, missing-class-docstring
 import os
+from enum import Enum
 from typing import Dict, List, Tuple
 from mautrix.types.event.message import MessageType, TextMessageEventContent
 from .utils import get_config_value
+
+class AdminCommands(str, Enum):
+    HELP = '!help'
+    REREAD = '!reread'
+
+    @staticmethod
+    def list():
+        return list(map(lambda c: c.value, AdminCommands))
+
+    @staticmethod
+    def get_description(command):
+        if command == AdminCommands.HELP:
+            return f'{command} - shows this message'
+        if command == AdminCommands.REREAD:
+            return f'{command} - reread directory with images and create image text files'
+
+    @staticmethod
+    def help_message():
+        return list(map(AdminCommands.get_description, AdminCommands))
 
 class AdminCommandHandler:
 
@@ -15,7 +35,7 @@ class AdminCommandHandler:
         self.complete_media_file = get_config_value(config, "complete_media_file", False)
 
     def _create_help_message(self) -> str:
-        return "Hello World :)"
+        return "\n".join(AdminCommands.help_message())
 
     @staticmethod
     def _is_file(file: str):
@@ -39,10 +59,11 @@ class AdminCommandHandler:
     def _handle_command(self, command: str, params: List) -> str:
         self.log.trace(f'_handle_command: {command}')
         self.log.trace(params)
-
         try:
-            if command == "!reread":
+            if command == AdminCommands.REREAD:
                 return self._reread_files()
+            if command == AdminCommands.HELP:
+                return self._create_help_message()
         except Exception as exception:
             return str(exception)
 

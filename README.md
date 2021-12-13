@@ -16,6 +16,9 @@ There is a config-example.yml in this projects which should be mostly self-expla
 It is possible to add textmessages to the images. This is done with the tool 'convert'.
 The client automatically adds the first message after you post media content to the latest image when write_text_messages is set to true.
 
+You can also define optionally define an admin_user which can run some administration commands on the photoframe.
+If you define an admin user then just send !help from the specified user to the chatroom and the client sends you a list of available commands.
+
 ## Running
 
 Just create a virtual environement install the requirements and you can run the client.
