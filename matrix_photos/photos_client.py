@@ -11,8 +11,10 @@
 import sys
 import asyncio
 import traceback
+import random
 from typing import Dict, Union
 from mautrix.client import client as mau
+from mautrix.client.api import events
 from mautrix.crypto import PgCryptoStateStore, OlmMachine, StateStore as CryptoStateStore, PgCryptoStore
 from mautrix.crypto.attachments.attachments import decrypt_attachment
 from mautrix.client.state_store.sqlalchemy import SQLStateStore as BaseSQLStateStore
@@ -63,7 +65,8 @@ class PhotOsClient():
             self.admin_command_handler = AdminCommandHandler(self.admin_user, config, logger)
 
         self.text_message_command_handler = TextmessageCommandHandler(config, logger)
-        
+        self.random_response_messages = get_config_value(config, "random_response_messages", False)
+
         self.crypto_db = None
         self.client = None
 
@@ -193,15 +196,25 @@ class PhotOsClient():
     async def message_before_was_media_message(self, room_id: RoomID) -> bool:
         token = await self.client.sync_store.get_next_batch()
         if token:
-            messages = await self.client.get_messages(room_id, direction=PaginationDirection.BACKWARD, from_token=token, limit=2)
-            if len(messages.events) == 2:
-                event = messages.events[1]
+            messages = await self.client.get_messages(room_id, direction=PaginationDirection.BACKWARD, from_token=token, limit=10)
+            foreign_messages = list(filter(lambda x: x.sender != self.user_id, messages.events))[:2]
+
+            if len(foreign_messages) == 2:
+                event = foreign_messages[1]
                 if isinstance(event, EncryptedEvent):
                     decrypted = await self.client.crypto.decrypt_megolm_event(event)
                     if decrypted and isinstance(decrypted.content, MediaMessageEventContent):
                         return True
         return False
 
+    async def _send_random_response_message(self, evt: StrippedStateEvent):
+        if not self.random_response_messages:
+            return
+
+        response = random.choice(self.random_response_messages)
+        content = TextMessageEventContent(MessageType.TEXT, response)
+        content.set_reply(evt)
+        await self.client.send_message_event(evt.room_id, EventType.ROOM_MESSAGE, content)
 
     async def _handle_message(self, evt: StrippedStateEvent) -> None:
         self.log.trace('_handle_message')
@@ -214,6 +227,7 @@ class PhotOsClient():
             if isinstance(evt.content, MediaMessageEventContent) and self._is_allowed_content(evt.content):
                 self.log.trace('MediaMessageEventContent')
                 await self._store_data(evt.content)
+                await self._send_random_response_message(evt)
 
         #pylint: disable=broad-except
         except Exception as error:
