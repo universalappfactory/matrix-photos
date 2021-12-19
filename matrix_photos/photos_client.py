@@ -32,6 +32,7 @@ from .utils import get_config_value
 from .admin_command_handler import AdminCommandHandler
 from .text_message_command_handler import TextmessageCommandHandler
 
+
 class SQLStateStore(BaseSQLStateStore, CryptoStateStore):
     pass
 
@@ -62,6 +63,7 @@ class PhotOsClient():
             self.admin_command_handler = AdminCommandHandler(self.admin_user, config, logger)
 
         self.text_message_command_handler = TextmessageCommandHandler(config, logger)
+        
         self.crypto_db = None
         self.client = None
 

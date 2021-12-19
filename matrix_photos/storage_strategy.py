@@ -2,6 +2,7 @@
 import os
 from typing import Dict
 from .utils import get_config_value
+from .file_convert import FileConvert
 
 class DefaultStorageStrategy():
     """
@@ -15,6 +16,9 @@ class DefaultStorageStrategy():
         self.media_file = get_config_value(config, "media_file")
         self.max_file_count = int(get_config_value(config, "max_file_count"))
         self.complete_media_file = get_config_value(config, "complete_media_file", False)
+        self._convert = FileConvert(get_config_value(config["convert"], "convert_binary"), logger)
+        self.convert_on_save = get_config_value(config["convert"], "convert_on_save")
+        self.convert_parameters = get_config_value(config["convert"], "convert_parameters")
 
     def _append_to_complete_media_file(self, filename) -> None:
         if not self.complete_media_file:
@@ -43,12 +47,22 @@ class DefaultStorageStrategy():
             return self._get_next_filename(prefered_filename, index+1)
         return new_filename
 
+
+    def _convert_file(self, filename: str):
+        self._convert.convert_file(filename, self.convert_parameters)
+
+    # Todo create images_local folder when not exists
     def store(self, data: bytes, filename: str) -> None:
         target = self._get_next_filename(os.path.join(self.media_path, filename))
 
         self.log.trace(f'save file as {target}')
         with open(target, "wb") as binary_file:
             binary_file.write(data)
-            self._add_to_media_file(target)
-            self._append_to_complete_media_file(target)
+            binary_file.close()
+
+        if self.convert_on_save:
+            self._convert_file(target)
+
+        self._add_to_media_file(target)
+        self._append_to_complete_media_file(target)
 #pylint: enable=missing-module-docstring, missing-function-docstring, line-too-long, missing-class-docstring
