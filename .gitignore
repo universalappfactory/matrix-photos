@@ -131,7 +131,6 @@ dmypy.json
 .pyre/
 
 config.yml
-config-example.yml
 matrix-photoframe.log
 .vscode/launch.json
 

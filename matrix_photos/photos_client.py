@@ -14,7 +14,6 @@ import traceback
 import random
 from typing import Dict, Union
 from mautrix.client import client as mau
-from mautrix.client.api import events
 from mautrix.crypto import PgCryptoStateStore, OlmMachine, StateStore as CryptoStateStore, PgCryptoStore
 from mautrix.crypto.attachments.attachments import decrypt_attachment
 from mautrix.client.state_store.sqlalchemy import SQLStateStore as BaseSQLStateStore
@@ -161,7 +160,7 @@ class PhotOsClient():
         vector = media_content.file.iv
         decrypted_data = decrypt_attachment(encrypted_data, media_content.file.key.key, file_hash, vector)
 
-        #TODO maybe store the hash somewhere and only store the file if we dont have a file with the same hash
+        #IDEA maybe store the hash somewhere and only store the file if we dont have a file with the same hash
         self.storage_strategy.store(decrypted_data, str(media_content.body))
 
 
@@ -189,7 +188,9 @@ class PhotOsClient():
         if self._is_admin_command(evt):
             await self._handle_admin_command(evt)
         else:
-            if await self.message_before_was_media_message(evt.room_id):
+            is_foreign_message = evt.sender != self.user_id
+            media_message_before = await self.message_before_was_media_message(evt.room_id)
+            if is_foreign_message and media_message_before:
                 self.text_message_command_handler.handle(evt.content)
 
 

@@ -1,0 +1,74 @@
+logging:
+    version: 1
+    formatters:
+        normal:
+            format: "[%(asctime)s] [%(levelname)s@%(name)s] %(message)s"
+    handlers:
+        file:
+            class: logging.handlers.RotatingFileHandler
+            formatter: normal
+            filename: ./matrix-photoframe.log
+            maxBytes: 10485760
+            backupCount: 10
+        console:
+            class: logging.StreamHandler
+            formatter: normal
+    loggers:
+        mau:
+            level: WARN
+        aiohttp:
+            level: WARN
+    root:
+        level: WARN
+        handlers: [file]
+
+matrix:
+    user_id: "@your:matrix.userid"
+    user_password: "your_matrix_user_password"
+    # a device id for your photoframe
+    device_id: "MyMatrixPhotoFrame"
+    base_url: "https://your.matrix.homeserver"
+    database_url: "postgres://postgres_username:postgres_password@localhost"
+    media_path: "/data"
+    media_file: "/data/photoframe/conf/filelist.txt"
+    
+    # in this file all files from the media_path are listed, the photoframe can show all files in a specifc mode (e.g. set by gpio)
+    complete_media_file: "/data/photoframe/conf/complete_filelist.txt"
+    
+    # if the free diskspace of media_path falls below this value, the oldest files will be deleted
+    # set to 0 if you don't want to delete any files
+    min_free_disk_space_mb: 10
+
+    # maximum number of files listed in the media_file, by default this pictures are shown
+    max_file_count: 20
+
+    # an optional admin user, this user can perform special commands (enter !help as admin user in the chatroom to get more info)
+    admin_user: "@admin:localhost"
+
+    # a list of trusted users, the photoframe will join all room invitiations from this users and also download media posted in the chatrooms
+    trusted_users:
+        - "@user:localhost"
+    message_convert:
+        # when set to true and the message before a textmessage was a media file, the textmessage is drawn onto the image with convert
+        write_text_messages: true
+        convert_binary: "/usr/bin/convert"
+        convert_text_parameter: "text 20,60"
+        convert_parameters:
+            - "-resize"
+            - "1280x768"
+            - "-font"
+            - "helvetica"
+            - "-fill"
+            - "blue"
+            - "-pointsize"
+            - "60"
+            - "-draw"
+    # list of allowed mimetypes which will be automatically downloaded
+    allowed_mimetypes:
+        - "image/jpeg"
+        - "image/png"
+        - "image/bmp"
+    # an optional list of response messages
+    # the photoframe will answer with one of the messages if you post some media in a chatroom
+    random_response_messages:
+        - "i received your image"
