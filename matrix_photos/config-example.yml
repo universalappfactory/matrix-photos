@@ -37,10 +37,13 @@ matrix:
     
     # if the free diskspace of media_path falls below this value, the oldest files will be deleted
     # set to 0 if you don't want to delete any files
-    min_free_disk_space_mb: 10
+    min_free_disk_space_mb: 20
 
     # maximum number of files listed in the media_file, by default this pictures are shown
     max_file_count: 20
+
+    # the maximum download size for files, if the filesize is bigger the file will not be downloaded
+    max_download_size_mb: 15
 
     # an optional admin user, this user can perform special commands (enter !help as admin user in the chatroom to get more info)
     admin_user: "@admin:localhost"
