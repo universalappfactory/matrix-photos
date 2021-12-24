@@ -48,6 +48,13 @@ matrix:
     # a list of trusted users, the photoframe will join all room invitiations from this users and also download media posted in the chatrooms
     trusted_users:
         - "@user:localhost"
+    convert:
+        # if this is set to true, the files will be converted when a file is downloaded
+        convert_on_save: true
+        convert_binary: "/usr/bin/convert"
+        convert_parameters:
+            - "-resize"
+            - "1280x768"
     message_convert:
         # when set to true and the message before a textmessage was a media file, the textmessage is drawn onto the image with convert
         write_text_messages: true
