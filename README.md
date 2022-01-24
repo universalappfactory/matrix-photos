@@ -1,4 +1,9 @@
 # matrix-photos
+
+
+[![Latest PyPI version](https://img.shields.io/pypi/v/matrix-photos)](https://pypi.org/project/matrix-photos/)
+[![CI build status](https://img.shields.io/github/workflow/status/universalappfactory/matrix-photos/Deploy%20to%20PyPI/main)](https://github.com/universalappfactory/matrix-photos/actions/workflows/pypi-deploy.yml)
+
 This aims to be a simple [matrix](https://matrix.org/) client for the photOS DIY photoframe.
 
 Matrix is an open standard for secure, decentralised, real-time communication.
