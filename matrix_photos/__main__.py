@@ -11,11 +11,12 @@ import yaml
 from aiohttp import ClientSession
 from mautrix.util.logging import TraceLogger
 from .photos_client import PhotOsClient
+from .configuration import MatrixConfiguration
 
-#pylint: disable=global-statement, missing-function-docstring, broad-except, global-variable-not-assigned
 loop = asyncio.get_event_loop()
 
-commandline_parser = argparse.ArgumentParser(description="PhotOS Matrix client")
+commandline_parser = argparse.ArgumentParser(
+    description="PhotOS Matrix client")
 commandline_parser.add_argument("-c", "--config", type=str,
                                 default="~/config.yaml",
                                 required=True, metavar="<path>",
@@ -34,28 +35,33 @@ logging.config.dictConfig(CONFIG["logging"])
 logger = logging.getLogger(__name__)
 TRACE_LOGGER = cast(TraceLogger, logger)
 
+
 async def main():
+    # pylint: disable=global-statement
     global HTTP_CLIENT
     HTTP_CLIENT = ClientSession(loop=loop)
     global PHOTOS_CLIENT
+    # pylint: enable=global-statement
 
     async def try_connect() -> bool:
         try:
-            global PHOTOS_CLIENT
-            global TRACE_LOGGER
-            global CONFIG
             await PHOTOS_CLIENT.initialize()
             await PHOTOS_CLIENT.start()
             return True
+        # pylint: disable=broad-except
         except Exception as exception:
             TRACE_LOGGER.exception(exception)
             return False
+        # pylint: enable=broad-except
 
-    PHOTOS_CLIENT = PhotOsClient(CONFIG["matrix"], HTTP_CLIENT, TRACE_LOGGER)
+    PHOTOS_CLIENT = PhotOsClient(MatrixConfiguration.from_dict(CONFIG["matrix"]),
+                                 HTTP_CLIENT,
+                                 TRACE_LOGGER)
 
     while not await try_connect():
         print('failure')
         await asyncio.sleep(5)
+
 
 async def stop() -> None:
     logger.info('terminate client')
@@ -65,6 +71,7 @@ async def stop() -> None:
     if HTTP_CLIENT:
         await HTTP_CLIENT.close()
 
+# pylint: disable=broad-except
 try:
     logger.info("Starting PhotOS Matrix Client")
     loop.run_until_complete(main())
@@ -85,8 +92,7 @@ except KeyboardInterrupt:
     loop.run_until_complete(stop())
     loop.close()
     sys.exit(0)
-
 except Exception:
     logger.fatal("Fatal error in PhotOS Matrix Client", exc_info=True)
     sys.exit(1)
-#pylint: enable=global-statement, missing-function-docstring, broad-except, global-variable-not-assigned
+# pylint: enable=broad-except

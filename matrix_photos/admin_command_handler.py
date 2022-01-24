@@ -1,8 +1,8 @@
-#pylint: disable=missing-module-docstring, missing-function-docstring, line-too-long, missing-class-docstring
 from enum import Enum
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 from mautrix.types.event.message import MessageType, TextMessageEventContent
-from .utils import get_config_value, disk_usage, reread_files
+from .utils import disk_usage, reread_files
+from .configuration import MatrixConfiguration
 
 class AdminCommands(str, Enum):
     HELP = '!help'
@@ -21,31 +21,33 @@ class AdminCommands(str, Enum):
             return f'{command} - reread directory with images and create image text files'
         if command == AdminCommands.STATS:
             return f'{command} - show various statistics like free diskspace'
+        return ''
 
     @staticmethod
     def help_message():
         return list(map(AdminCommands.get_description, AdminCommands))
 
+
 class AdminCommandHandler:
 
-    def __init__(self, admin_user: str, config: Dict, logger) -> None:
+    def __init__(self, config: MatrixConfiguration, logger) -> None:
         self.log = logger
-        self.admin_user = admin_user
-        self.media_path = get_config_value(config, "media_path")
-        self.media_file = get_config_value(config, "media_file")
-        self.max_file_count = int(get_config_value(config, "max_file_count"))
-        self.complete_media_file = get_config_value(config, "complete_media_file", False)
+        self.config = config
 
-    def _create_help_message(self) -> str:
+    @staticmethod
+    def _create_help_message() -> str:
         return "\n".join(AdminCommands.help_message())
 
     def _show_stats(self) -> str:
-        stats = disk_usage(self.media_path)
+        stats = disk_usage(self.config.media_path)
         free_mb = stats.free / (1024*1024*1024)
         return f'Free disk space (Gb): {free_mb}'
 
     def _reread_files(self) -> str:
-        reread_files(self.media_path, self.media_file, self.complete_media_file, self.max_file_count)
+        reread_files(self.config.media_path,
+                     self.config.media_file,
+                     self.config.complete_media_file,
+                     self.config.max_file_count)
         return "Done reread files"
 
     def _handle_command(self, command: str, params: List) -> str:
@@ -55,17 +57,18 @@ class AdminCommandHandler:
             if command == AdminCommands.REREAD:
                 return self._reread_files()
             if command == AdminCommands.HELP:
-                return self._create_help_message()
+                return AdminCommandHandler._create_help_message()
             if command == AdminCommands.STATS:
                 return self._show_stats()
-        #pylint: disable=broad-except
+        # pylint: disable=broad-except
         except Exception as exception:
             return str(exception)
-        #pylint: enable=broad-except
+        # pylint: enable=broad-except
 
         return None
 
-    def _get_command_with_parameters(self, content: TextMessageEventContent) -> Tuple[str, List[str]]:
+    def _get_command_with_parameters(self,
+                                     content: TextMessageEventContent) -> Tuple[str, List[str]]:
         commands = content.body.split(' ')
         if len(commands) <= 0:
             self.log.trace("no commands given")
@@ -88,4 +91,3 @@ class AdminCommandHandler:
             return self._handle_command(commands[0], commands[1])
 
         return None
-#pylint: enable=missing-module-docstring, missing-function-docstring, line-too-long, missing-class-docstring
