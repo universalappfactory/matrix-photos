@@ -1,0 +1,30 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+mautrix = "<0.13,>=0.12.2"
+aiohttp = ">=3,<4"
+aiosqlite = "<0.18,>=0.16"
+python-olm = ">=3,<4"
+pycryptodome = ">=3,<4"
+unpaddedbase64 = ">=1,<2"
+psycopg2-binary = ">=2,<3"
+asyncpg = ">=0.20,<0.26"
+SQLAlchemy = ">=1,<1.4"
+PyYAML = "==6.0"
+
+[dev-packages]
+autopep8 = "*"
+pylint = "*"
+pytest = "*"
+
+[requires]
+python_version = "3.8"
+
+[scripts]
+linting = "pylint --rcfile .pylintrc matrix_photos"
+tests = "pytest tests"
+build = "python3 setup.py sdist bdist_wheel"
+deploy = "python3 -m twine upload dist/*"
