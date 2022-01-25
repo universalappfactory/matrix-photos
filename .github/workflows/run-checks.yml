@@ -10,6 +10,10 @@ jobs:
     name: build and run linting and checks
     runs-on: ubuntu-latest
     steps:
+      - name: Install required packages
+        run: |
+          sudo apt-get -y install libolm-dev
+      
       - name: Check out repository code
         uses: actions/checkout@v2
       

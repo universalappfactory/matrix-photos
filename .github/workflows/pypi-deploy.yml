@@ -13,6 +13,10 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v2
       
+      - name: Install required packages
+        run: |
+          sudo apt-get -y install libolm-dev
+      
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
