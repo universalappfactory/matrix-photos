@@ -12,7 +12,7 @@ For photOS please checkout https://github.com/avanc/photOS for more information.
 
 This client can be used to transfer files (pictures/photos) to the photoframe with end to end encryption support.
 The idea is, that trusted users just can create a matrix room and invite the photoframe matrix user.
-The photoframe user will automatically join this room and download all pictures sent to this room.
+The photoframe user will automatically join this room and download all media sent to this room (You can specify which mimetypes are allowed).
 
 ## Configuration
 
