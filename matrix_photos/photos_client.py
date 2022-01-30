@@ -66,6 +66,16 @@ class PhotOsClient():
         self.crypto_db = None
         self.client = None
 
+    async def _get_valid_device_id(self, crypto_store: PgCryptoStore) -> None:
+        crypto_device_id = await crypto_store.get_device_id()
+        if crypto_device_id and crypto_device_id != self._config.device_id:
+            self.log.warn("Mismatching device ID in crypto store and config "
+                          f"(store: {crypto_device_id}, config: {self._config.device_id})"
+                          "add new device_id")
+            await crypto_store.put_device_id(self._config.device_id)
+
+        return await crypto_store.get_device_id()
+
     async def initialize(self):
         '''Prepare crypto store and initialize a matrix client'''
         self.crypto_db = AsyncDatabase.create(
@@ -94,12 +104,7 @@ class PhotOsClient():
         self.client.ignore_first_sync = False
         self.client.ignore_initial_sync = False
 
-        crypto_device_id = await crypto_store.get_device_id()
-        if crypto_device_id and crypto_device_id != self._config.device_id:
-            self.log.fatal("Mismatching device ID in crypto store and config "
-                           f"(store: {crypto_device_id}, config: {self._config.device_id})")
-            sys.exit(10)
-
+        crypto_device_id = await self._get_valid_device_id(crypto_store)
         await self.client.crypto.load()
         if not crypto_device_id:
             await crypto_store.put_device_id(self._config.device_id)
@@ -148,15 +153,15 @@ class PhotOsClient():
         self.log.trace(evt.state_key)
 
         if (evt.state_key == self._config.user_id
-                and self.is_trusted_user(evt.sender)
-                and evt.content.membership == Membership.INVITE
+                    and self.is_trusted_user(evt.sender)
+                    and evt.content.membership == Membership.INVITE
                 ):
             self.log.debug('join room!')
             await self.client.join_room(evt.room_id)
 
         if (evt.state_key == self._config.user_id
-            and not self.is_trusted_user(evt.sender)
-            and evt.content.membership == Membership.INVITE
+                and not self.is_trusted_user(evt.sender)
+                and evt.content.membership == Membership.INVITE
             ):
             self.log.trace(f'untrusted user {evt.sender}')
 
@@ -226,8 +231,7 @@ class PhotOsClient():
         token = await self.client.sync_store.get_next_batch()
         if token:
             # pylint:disable=fixme
-            # TODO I think there is a bug in the mautrix framework,
-            # the filter_json query parameter should be filter
+            # When https://github.com/mautrix/python/issues/87 is released
 
             # sender_filter =
             # f'{{"lazy_load_members":true,"limit":2,"senders":["{sender_id}"],
@@ -276,7 +280,7 @@ class PhotOsClient():
                 await self._handle_message_event(evt)
 
             if (isinstance(evt.content, MediaMessageEventContent)
-                    and self._is_allowed_content(evt.content)
+                and self._is_allowed_content(evt.content)
                 ):
                 self.log.trace('MediaMessageEventContent')
                 if await self._store_data(evt.content):

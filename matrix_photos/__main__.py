@@ -28,8 +28,12 @@ PHOTOS_CLIENT = None
 HTTP_CLIENT = None
 CONFIG = None
 
-with open(args.config, 'r', encoding='utf-8') as stream:
-    CONFIG = yaml.load(stream, Loader=yaml.FullLoader)
+try:
+    with open(args.config, 'r', encoding='utf-8') as stream:
+        CONFIG = yaml.load(stream, Loader=yaml.FullLoader)
+except FileNotFoundError:
+    print('configuration not found, exit')
+    sys.exit(1)
 
 logging.config.dictConfig(CONFIG["logging"])
 logger = logging.getLogger(__name__)
