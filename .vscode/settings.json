@@ -1,5 +1,14 @@
 {
     "python.linting.pylintEnabled": true,
     "python.linting.enabled": true,
-    "python.linting.pep8enabled": true
+    "python.linting.pep8enabled": true,
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        "./tests",
+        "-p",
+        "test_*.py"
+    ],
+    "python.testing.pytestEnabled": false,
+    "python.testing.unittestEnabled": true
 }

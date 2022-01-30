@@ -1,4 +1,9 @@
 # matrix-photos
+
+
+[![Latest PyPI version](https://img.shields.io/pypi/v/matrix-photos)](https://pypi.org/project/matrix-photos/)
+[![CI build status](https://img.shields.io/github/workflow/status/universalappfactory/matrix-photos/Deploy%20to%20PyPI/main)](https://github.com/universalappfactory/matrix-photos/actions/workflows/pypi-deploy.yml)
+
 This aims to be a simple [matrix](https://matrix.org/) client for the photOS DIY photoframe.
 
 Matrix is an open standard for secure, decentralised, real-time communication.
@@ -7,7 +12,7 @@ For photOS please checkout https://github.com/avanc/photOS for more information.
 
 This client can be used to transfer files (pictures/photos) to the photoframe with end to end encryption support.
 The idea is, that trusted users just can create a matrix room and invite the photoframe matrix user.
-The photoframe user will automatically join this room and download all pictures sent to this room.
+The photoframe user will automatically join this room and download all media sent to this room (You can specify which mimetypes are allowed).
 
 ## Configuration
 
