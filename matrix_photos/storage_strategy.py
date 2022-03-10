@@ -36,10 +36,12 @@ class DefaultStorageStrategy():
             text_file.writelines(new_data)
 
     def _get_next_filename(self, prefered_filename: str, index: int = 0) -> str:
-        suffix = f" #{index}" if index > 0 else ''
-        new_filename = f'{prefered_filename}{suffix}'
-        if os.path.exists(new_filename):
-            return self._get_next_filename(prefered_filename, index+1)
+        (base, ext) = os.path.splitext(prefered_filename)
+        new_filename = prefered_filename
+        index = 1
+        while os.path.exists(new_filename):
+            new_filename = f'{base}#{index}{ext}'
+            index += 1
         return new_filename
 
     def _convert_file(self, filename: str):
