@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from .utils import reread_files, disk_usage, get_media_file_list
 from .configuration import MatrixConfiguration
 from .file_convert import FileConvert
@@ -14,6 +15,15 @@ class DefaultStorageStrategy():
         self._config = config
         self.log = logger
         self._convert = FileConvert(config.convert.convert_binary, logger)
+        
+        try:
+            Path("/data/photoframe/images_local").mkdir(parents=False, exist_ok=False)
+            self.log.warning('created local image directory /data/photoframe/images_local since it was not found')
+        except FileNotFoundError as e:
+            self.log.error('failed to create local image directory at /data/photoframe, probably missing parent directory')
+            raise e
+        except FileExistsError:
+            self.log.trace('local image directory found')
 
     def _append_to_complete_media_file(self, filename) -> None:
         if not self._config.complete_media_file:
@@ -80,9 +90,6 @@ class DefaultStorageStrategy():
                          self._config.complete_media_file,
                          self._config.max_file_count)
 
-    # pylint: disable=fixme
-    # Todo create images_local folder when not exists
-    # pylint: enable=fixme
     def store(self, data: bytes, filename: str) -> None:
         target = self._get_next_filename(
             os.path.join(self._config.media_path, filename))
