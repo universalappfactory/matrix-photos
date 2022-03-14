@@ -15,15 +15,19 @@ class DefaultStorageStrategy():
         self._config = config
         self.log = logger
         self._convert = FileConvert(config.convert.convert_binary, logger)
-        
+
+        # pylint: disable=line-too-long
         try:
             Path("/data/photoframe/images_local").mkdir(parents=False, exist_ok=False)
-            self.log.warning('created local image directory /data/photoframe/images_local since it was not found')
-        except FileNotFoundError as e:
-            self.log.error('failed to create local image directory at /data/photoframe, probably missing parent directory')
-            raise e
+            self.log.warning(
+                'created local image directory /data/photoframe/images_local since it was not found')
+        except FileNotFoundError as error:
+            self.log.error(
+                'failed to create local image directory at /data/photoframe, probably missing parent directory')
+            raise error
         except FileExistsError:
             self.log.trace('local image directory found')
+        # pylint: enable=line-too-long
 
     def _append_to_complete_media_file(self, filename) -> None:
         if not self._config.complete_media_file:
@@ -45,7 +49,8 @@ class DefaultStorageStrategy():
             new_data = file_data[-self._config.max_file_count:]
             text_file.writelines(new_data)
 
-    def _get_next_filename(self, prefered_filename: str, index: int = 0) -> str:
+    @staticmethod
+    def _get_next_filename(prefered_filename: str, index: int = 0) -> str:
         (base, ext) = os.path.splitext(prefered_filename)
         new_filename = prefered_filename
         index = 1
@@ -73,8 +78,8 @@ class DefaultStorageStrategy():
         free_space_mb = disk_usage(
             self._config.media_path).free / (1024 * 1024)
         if ((self._config.min_free_disk_space_mb > 0)
-                and self._config.min_free_disk_space_mb > free_space_mb
-            ):
+                    and self._config.min_free_disk_space_mb > free_space_mb
+                ):
             self._delete_eldest_file()
             self._delete_eldest_files()
 
@@ -83,7 +88,7 @@ class DefaultStorageStrategy():
             self._config.media_path).free / (1024 * 1024)
         if ((self._config.min_free_disk_space_mb > 0)
                 and self._config.min_free_disk_space_mb > free_space_mb
-                ):
+            ):
             self._delete_eldest_files()
             reread_files(self._config.media_path,
                          self._config.media_file,
@@ -91,7 +96,7 @@ class DefaultStorageStrategy():
                          self._config.max_file_count)
 
     def store(self, data: bytes, filename: str) -> None:
-        target = self._get_next_filename(
+        target = DefaultStorageStrategy._get_next_filename(
             os.path.join(self._config.media_path, filename))
 
         self._check_storage_limit()
