@@ -1,12 +1,16 @@
-name: Run checks
+name: Development
 
 on:
-  push:
-    branches:
-      - develop
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+  workflow_call:
     
 jobs:
-  build-and-publish:
+  lint-and-test:
     name: build and run linting and checks
     runs-on: ubuntu-latest
     steps:
