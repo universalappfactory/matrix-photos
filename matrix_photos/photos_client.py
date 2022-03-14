@@ -153,16 +153,16 @@ class PhotOsClient():
         self.log.trace(evt.state_key)
 
         if (evt.state_key == self._config.user_id
-                    and self.is_trusted_user(evt.sender)
-                    and evt.content.membership == Membership.INVITE
-                ):
+            and self.is_trusted_user(evt.sender)
+            and evt.content.membership == Membership.INVITE
+            ):
             self.log.debug('join room!')
             await self.client.join_room(evt.room_id)
 
         if (evt.state_key == self._config.user_id
-                and not self.is_trusted_user(evt.sender)
-                and evt.content.membership == Membership.INVITE
-            ):
+                    and not self.is_trusted_user(evt.sender)
+                    and evt.content.membership == Membership.INVITE
+                ):
             self.log.trace(f'untrusted user {evt.sender}')
 
     def is_trusted_user(self, user_id: UserID) -> bool:
@@ -181,6 +181,11 @@ class PhotOsClient():
     async def _store_data(self, media_content: MediaMessageEventContent) -> bool:
         if self.max_download_size_exceeded(media_content):
             self.log.warn('max download size exceeded')
+            return False
+
+        if not media_content.file:
+            self.log.error(
+                'mediamessage does not contain encrypted data, is encryption enabled in your room?')
             return False
 
         encrypted_data = await self.client.download_media(media_content.file.url)
@@ -280,8 +285,8 @@ class PhotOsClient():
                 await self._handle_message_event(evt)
 
             if (isinstance(evt.content, MediaMessageEventContent)
-                and self._is_allowed_content(evt.content)
-                ):
+                    and self._is_allowed_content(evt.content)
+                    ):
                 self.log.trace('MediaMessageEventContent')
                 if await self._store_data(evt.content):
                     await self._send_random_response_message(evt)
