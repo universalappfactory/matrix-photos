@@ -14,34 +14,30 @@ jobs:
     name: build and run linting and checks
     runs-on: ubuntu-latest
     steps:
+      - name: Check out repository code
+        uses: actions/checkout@v2
+      
       - name: Install required packages
         run: |
           sudo apt-get -y install libolm-dev
-      
-      - name: Check out repository code
-        uses: actions/checkout@v2
       
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
           python-version: "3.x"
 
-      - name: Install pipenv
+      - name: Install poetry
         run: |
-          python -m pip install --upgrade pipenv wheel
-      - id: cache-pipenv
-        uses: actions/cache@v1
-        with:
-          path: ~/.local/share/virtualenvs
-          key: ${{ runner.os }}-pipenv-${{ hashFiles('**/Pipfile.lock') }}
-
+          python -m pip install --upgrade poetry
+      
       - name: Install dependencies
-        if: steps.cache-pipenv.outputs.cache-hit != 'true'
         run: |
-          pipenv install --deploy --dev
+          poetry update
+
       - name: Run linting
         run: |
-          pipenv run linting
+          poetry run pylint --rcfile .pylintrc matrix_photos
+
       - name: Run tests
         run: |
-          pipenv run tests
+          poetry run pytest tests
