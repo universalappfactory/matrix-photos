@@ -53,3 +53,4 @@ jobs:
         uses: JRubics/poetry-publish@v1.5
         with:
           pypi_token: ${{ secrets.PYPI_API_TOKEN }}
+          extra_build_dependency_packages: "libolm-dev"
