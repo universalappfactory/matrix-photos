@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "matrix-photos"
-version = "v0.0.5b2"
+version = "0.0.5b3"
 description = "A matrix client for the photOS DIY photoframe"
 authors = ["universalappfactory <info@universalappfactory.de>"]
 license = "GPL-3.0-or-later"
