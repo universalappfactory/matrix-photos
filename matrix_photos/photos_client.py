@@ -166,7 +166,7 @@ class PhotOsClient():
 
         if self.client.crypto_enabled:
             self.log.debug("Enabled encryption support")
-        
+
         self.client.remove_dispatcher(DecryptionDispatcher)
         ClientDecryptionDispatcher.user_id = self._config.user_id
         self.client.add_dispatcher(ClientDecryptionDispatcher)
