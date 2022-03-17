@@ -16,14 +16,15 @@ class DefaultStorageStrategy():
         self.log = logger
         self._convert = FileConvert(config.convert.convert_binary, logger)
 
+        media_path = self._config.media_path
         # pylint: disable=line-too-long
         try:
-            Path("/data/photoframe/images_local").mkdir(parents=False, exist_ok=False)
+            Path(media_path).mkdir(parents=False, exist_ok=False)
             self.log.warning(
-                'created local image directory /data/photoframe/images_local since it was not found')
+                f'created local image directory {media_path} since it was not found')
         except FileNotFoundError as error:
             self.log.error(
-                'failed to create local image directory at /data/photoframe, probably missing parent directory')
+                'failed to create local image directory at {media_path}, probably missing parent directory')
             raise error
         except FileExistsError:
             self.log.trace('local image directory found')

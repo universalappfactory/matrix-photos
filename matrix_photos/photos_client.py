@@ -13,6 +13,9 @@ import traceback
 import random
 from typing import Union
 from mautrix.client import client as mau
+from mautrix.client.dispatcher import SimpleDispatcher
+from mautrix.client.encryption_manager import DecryptionDispatcher
+
 from mautrix.crypto import (
     PgCryptoStateStore,
     OlmMachine,
@@ -29,8 +32,12 @@ from mautrix.types.event.message import (MediaMessageEventContent,
 from mautrix.types.misc import PaginationDirection
 from mautrix.types.primitive import RoomID, UserID
 from mautrix.util.async_db import Database as AsyncDatabase
-from mautrix.types import (StrippedStateEvent, Membership,
-                           EventType)
+from mautrix.types import (StrippedStateEvent,
+                           Membership,
+                           EventType
+                           )
+
+from mautrix.errors import DecryptionError
 from matrix_photos.text_message_command_handler import TextmessageCommandHandler
 from .storage_strategy import DefaultStorageStrategy
 from .admin_command_handler import AdminCommandHandler
@@ -40,6 +47,54 @@ from .configuration import MatrixConfiguration
 
 class SQLStateStore(BaseSQLStateStore, CryptoStateStore):
     pass
+class ClientDecryptionDispatcher(SimpleDispatcher):
+    """
+    This is a custom decryption dispatcher which sends a m.room_key_request to-device event
+    when decryption fails in order to try decryption again.
+    """
+
+    #pylint: disable=no-member
+    event_type = EventType.ROOM_ENCRYPTED
+    #pylint: enable=no-member
+    client: mau.Client
+    user_id = ""
+
+    async def _request_room_key_for_event(self, evt: EncryptedEvent):
+        try:
+            self.client.crypto_log.trace("request room keys")
+            await self.client.crypto.request_room_key(
+                evt.room_id,
+                evt.content.sender_key,
+                evt.content.session_id,
+                from_devices={evt.sender: [evt.content.device_id]}, timeout=10)
+        #pylint:disable=broad-except
+        except Exception as error:
+            self.client.crypto_log.error(error)
+        #pylint:enable=broad-except
+
+    async def _retry_handle_event(self, evt: EncryptedEvent):
+        try:
+            self.client.crypto_log.trace("retry to handle event")
+            await self._handle_event(evt)
+        #pylint:disable=broad-except
+        except Exception as retry_error:
+            self.client.crypto_log.error("failed to retry", retry_error)
+        #pylint:enable=broad-except
+
+    async def _handle_event(self, evt: EncryptedEvent) -> None:
+        decrypted = await self.client.crypto.decrypt_megolm_event(evt)
+        self.client.dispatch_event(decrypted, evt.source)
+
+    async def handle(self, evt: EncryptedEvent) -> None:
+        try:
+            self.client.crypto_log.trace(
+                f'try to decrypt event {evt.event_id}')
+            await self._handle_event(evt)
+        except DecryptionError as error:
+            self.client.crypto_log.warn(
+                'decryption error, try to request room keys', error)
+            await self._request_room_key_for_event(evt)
+            await self._retry_handle_event(evt)
 
 
 class PhotOsClient():
@@ -112,6 +167,10 @@ class PhotOsClient():
         if self.client.crypto_enabled:
             self.log.debug("Enabled encryption support")
 
+        self.client.remove_dispatcher(DecryptionDispatcher)
+        ClientDecryptionDispatcher.user_id = self._config.user_id
+        self.client.add_dispatcher(ClientDecryptionDispatcher)
+
         login_response = await self.client.login(self._config.user_id,
                                                  password=self._config.user_password)
         self.log.trace(login_response)
@@ -153,16 +212,16 @@ class PhotOsClient():
         self.log.trace(evt.state_key)
 
         if (evt.state_key == self._config.user_id
-            and self.is_trusted_user(evt.sender)
-            and evt.content.membership == Membership.INVITE
-            ):
+                    and self.is_trusted_user(evt.sender)
+                    and evt.content.membership == Membership.INVITE
+                ):
             self.log.debug('join room!')
             await self.client.join_room(evt.room_id)
 
         if (evt.state_key == self._config.user_id
-                    and not self.is_trusted_user(evt.sender)
-                    and evt.content.membership == Membership.INVITE
-                ):
+                and not self.is_trusted_user(evt.sender)
+                and evt.content.membership == Membership.INVITE
+            ):
             self.log.trace(f'untrusted user {evt.sender}')
 
     def is_trusted_user(self, user_id: UserID) -> bool:
@@ -285,8 +344,8 @@ class PhotOsClient():
                 await self._handle_message_event(evt)
 
             if (isinstance(evt.content, MediaMessageEventContent)
-                    and self._is_allowed_content(evt.content)
-                    ):
+                and self._is_allowed_content(evt.content)
+                ):
                 self.log.trace('MediaMessageEventContent')
                 if await self._store_data(evt.content):
                     await self._send_random_response_message(evt)
