@@ -26,7 +26,7 @@ class TextmessageCommandHandler:
     def _add_message_to_file(self, filename, message):
         self.log.trace(f'_add_text_to_file {message}')
         self._convert.convert_file(filename,
-                                   self._config.convert.convert_parameters,
+                                   self._config.message_convert.convert_parameters,
                                    message=message,
                                    convert_text_parameter=self._config.message_convert.convert_text_parameter
                                    )
